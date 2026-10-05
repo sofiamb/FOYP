@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laboratorio interactivo de Torque</title>
+<style>
+:root { font-family: Arial, Helvetica, sans-serif; }
+* { box-sizing:border-box; }
+body { margin:0; background:#f2f3f5; color:#202124; }
+main { max-width:1050px; margin:auto; padding:24px; }
+h1 { margin:0 0 6px; }
+.subtitle { margin:0 0 20px; color:#555; }
+.card { background:#fff; border:1px solid #d7d7d7; border-radius:14px; padding:18px; margin-bottom:16px; }
+canvas { display:block; width:100%; height:auto; border:1px solid #ccc; border-radius:10px; background:#fafafa; }
+.controls { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+label { display:block; font-weight:700; margin-bottom:8px; }
+input[type=range] { width:100%; }
+.readout { font-weight:400; }
+.buttons { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+button { border:1px solid #777; background:white; border-radius:8px; padding:10px 18px; font-weight:700; cursor:pointer; }
+button:hover { background:#eee; }
+.result { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:center; }
+.formula { background:#f1f1f1; padding:14px; border-radius:9px; font-size:1.15rem; }
+.big { font-size:1.35rem; font-weight:700; }
+.status { padding:12px; border:1px solid #bbb; border-radius:9px; text-align:center; font-weight:700; }
+.help { color:#555; line-height:1.45; }
+@media(max-width:720px) {
+  .controls,.result { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Laboratorio interactivo: Torque</h1>
+  <p class="subtitle">Configurá la fuerza y observá cómo el torque produce un giro visible.</p>
+
+  <section class="card">
+    <canvas id="c" width="960" height="500"></canvas>
+  </section>
+
+  <section class="card">
+    <div class="controls">
+      <div>
+        <label>Fuerza: <span class="readout" id="fOut"></span></label>
+        <input id="force" type="range" min="0" max="50" value="20" step="1">
+      </div>
+      <div>
+        <label>Distancia al eje: <span class="readout" id="rOut"></span></label>
+        <input id="radius" type="range" min="0" max="2" value="1.5" step="0.1">
+      </div>
+      <div>
+        <label>Ángulo de la fuerza: <span class="readout" id="aOut"></span></label>
+        <input id="angle" type="range" min="0" max="180" value="90" step="1">
+      </div>
+    </div>
+    <div class="buttons">
+      <button id="apply">Aplicar fuerza</button>
+      <button id="reset">Reiniciar</button>
+    </div>
+  </section>
+
+  <section class="card result">
+    <div>
+      <div class="formula">τ = r · F · sin(θ)</div>
+      <p class="big" id="torqueOut"></p>
+      <p class="help">El torque determina qué tan fuerte es el efecto de giro alrededor del eje.</p>
+    </div>
+    <div class="status" id="status">Preparado para aplicar la fuerza</div>
+  </section>
+
+  <section class="card help">
+    <strong>Probá estos casos:</strong>
+    fuerza 20 N, distancia 2 m y 90° produce un giro fuerte.
+    Después dejá los mismos valores y cambiá el ángulo a 0°: el torque pasa a cero y la barra no gira.
+    También podés acercar el punto de aplicación al eje para observar cómo disminuye el efecto.
+  </section>
+</main>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+const forceEl = document.getElementById("force");
+const radiusEl = document.getElementById("radius");
+const angleEl = document.getElementById("angle");
+
+let barAngle = 0;
+let angularVelocity = 0;
+let applying = false;
+let activeTorque = 0;
+let pulse = 0;
+
+function values() {
+  const F = +forceEl.value;
+  const r = +radiusEl.value;
+  const theta = +angleEl.value;
+  const torque = r * F * Math.sin(theta * Math.PI / 180);
+  return {F,r,theta,torque};
+}
+
+function updateText() {
+  const v=values();
+  fOut.textContent=v.F+" N";
+  rOut.textContent=v.r.toFixed(1)+" m";
+  aOut.textContent=v.theta+"°";
+  torqueOut.textContent="Torque = "+v.torque.toFixed(2)+" N·m";
+}
+
+function arrow(x1,y1,x2,y2) {
+  const ang=Math.atan2(y2-y1,x2-x1), head=13;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(ang-Math.PI/6), y2-head*Math.sin(ang-Math.PI/6));
+  ctx.lineTo(x2-head*Math.cos(ang+Math.PI/6), y2-head*Math.sin(ang+Math.PI/6));
+  ctx.closePath(); ctx.fill();
+}
+
+function worldPoint(localX) {
+  const ox=canvas.width/2, oy=canvas.height/2+35;
+  return {
+    x: ox + localX*Math.cos(barAngle),
+    y: oy + localX*Math.sin(barAngle)
+  };
+}
+
+function drawCurvedArrow(cx,cy,radius,start,end) {
+  ctx.beginPath();
+  ctx.arc(cx,cy,radius,start,end,false);
+  ctx.stroke();
+  const x=cx+radius*Math.cos(end), y=cy+radius*Math.sin(end);
+  const tangent=end+Math.PI/2;
+  ctx.beginPath();
+  ctx.moveTo(x,y);
+  ctx.lineTo(x-12*Math.cos(tangent-.45),y-12*Math.sin(tangent-.45));
+  ctx.lineTo(x-12*Math.cos(tangent+.45),y-12*Math.sin(tangent+.45));
+  ctx.closePath(); ctx.fill();
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const {F,r,theta,torque}=values();
+  const ox=canvas.width/2, oy=canvas.height/2+35;
+  const barLength=300;
+  const pointDistance=(r/2)*barLength;
+
+  ctx.fillStyle="#222";
+  ctx.font="bold 20px Arial";
+  ctx.fillText("RESULTADO VISUAL",25,35);
+
+  // reference cross
+  ctx.strokeStyle="#ddd"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(60,oy); ctx.lineTo(900,oy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,70); ctx.lineTo(ox,450); ctx.stroke();
+
+  // rotating lever
+  ctx.save();
+  ctx.translate(ox,oy);
+  ctx.rotate(barAngle);
+
+  ctx.strokeStyle="#333";
+  ctx.lineWidth=20;
+  ctx.lineCap="round";
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.lineTo(barLength,0);
+  ctx.stroke();
+
+  // application point
+  ctx.fillStyle="#c62828";
+  ctx.beginPath();
+  ctx.arc(pointDistance,0,10,0,Math.PI*2);
+  ctx.fill();
+
+  // distance guide
+  ctx.strokeStyle="#777";
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(0,32);
+  ctx.lineTo(pointDistance,32);
+  ctx.stroke();
+  ctx.fillStyle="#333";
+  ctx.font="16px Arial";
+  ctx.fillText("r = "+r.toFixed(1)+" m", Math.max(10,pointDistance/2-28),60);
+  ctx.restore();
+
+  // pivot
+  ctx.fillStyle="#111";
+  ctx.beginPath(); ctx.arc(ox,oy,17,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#333"; ctx.font="16px Arial";
+  ctx.fillText("Eje de rotación",ox-55,oy+50);
+
+  // force vector, angle measured relative to lever
+  const p=worldPoint(pointDistance);
+  const globalForceAngle=barAngle-theta*Math.PI/180;
+  const forceLen=50+F*2.4;
+  const fx=p.x+forceLen*Math.cos(globalForceAngle);
+  const fy=p.y+forceLen*Math.sin(globalForceAngle);
+
+  ctx.strokeStyle="#1565c0"; ctx.fillStyle="#1565c0"; ctx.lineWidth=5;
+  arrow(p.x,p.y,fx,fy);
+  ctx.font="bold 17px Arial";
+  ctx.fillText("F = "+F+" N",fx+8,fy-8);
+
+  // torque direction cue
+  if (torque > .05) {
+    ctx.strokeStyle="#6a1b9a"; ctx.fillStyle="#6a1b9a"; ctx.lineWidth=5;
+    drawCurvedArrow(ox,oy,65,0,-1.6);
+    ctx.font="bold 17px Arial";
+    ctx.fillText("GIRO",ox-105,oy-75);
+  }
+
+  // visual meter
+  const meter=Math.min(torque/100,1);
+  ctx.fillStyle="#ddd"; ctx.fillRect(25,75,260,24);
+  ctx.fillStyle="#555"; ctx.fillRect(25,75,260*meter,24);
+  ctx.strokeStyle="#333"; ctx.lineWidth=1; ctx.strokeRect(25,75,260,24);
+  ctx.fillStyle="#222"; ctx.font="16px Arial";
+  ctx.fillText("Intensidad del torque",25,125);
+
+  ctx.font="bold 22px Arial";
+  ctx.fillText(torque.toFixed(2)+" N·m",25,155);
+
+  if (pulse>0) pulse--;
+}
+
+function animate() {
+  if (applying) {
+    // angular acceleration proportional to torque; intentionally scaled for visualization
+    angularVelocity += activeTorque * 0.000012;
+    angularVelocity *= 0.985;
+    barAngle -= angularVelocity;
+
+    // stop after a useful demonstration interval / speed decay
+    if (Math.abs(angularVelocity) < 0.00005 && activeTorque === 0) applying=false;
+  }
+  draw();
+  requestAnimationFrame(animate);
+}
+
+document.getElementById("apply").onclick=()=>{
+  const v=values();
+  activeTorque=v.torque;
+  angularVelocity=0;
+
+  if (Math.abs(v.torque)<0.01) {
+    applying=false;
+    status.textContent="Torque = 0: no se produce giro";
+  } else {
+    applying=true;
+    status.textContent="El torque está haciendo girar la barra";
+    // force acts as an impulse so the demo does not accelerate forever
+    setTimeout(()=>{
+      activeTorque=0;
+      status.textContent="La fuerza dejó de aplicarse: observá el giro resultante";
+    },700);
+  }
+};
+
+document.getElementById("reset").onclick=()=>{
+  applying=false;
+  activeTorque=0;
+  angularVelocity=0;
+  barAngle=0;
+  status.textContent="Preparado para aplicar la fuerza";
+};
+
+[forceEl,radiusEl,angleEl].forEach(e=>e.addEventListener("input",()=>{
+  updateText();
+  if(!applying) draw();
+}));
+
+updateText();
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diagrama interactivo de Torque</title>
+<style>
+  :root { font-family: Arial, sans-serif; }
+  body { margin:0; background:#f4f4f4; color:#222; }
+  .wrap { max-width:1000px; margin:auto; padding:24px; }
+  h1 { margin:0 0 6px; }
+  .sub { margin:0 0 20px; color:#555; }
+  .panel { background:white; border:1px solid #ccc; border-radius:12px; padding:18px; margin-bottom:16px; }
+  canvas { width:100%; height:auto; border:1px solid #bbb; border-radius:8px; background:#fafafa; }
+  .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px; }
+  label { display:block; font-weight:bold; margin-bottom:8px; }
+  input[type=range] { width:100%; }
+  .value { font-weight:normal; }
+  .result { font-size:1.35rem; font-weight:bold; margin-top:12px; }
+  .formula { font-size:1.2rem; background:#eee; padding:12px; border-radius:8px; }
+  .note { color:#555; font-size:.95rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Torque (momento de una fuerza)</h1>
+  <p class="sub">Modificá la fuerza, la distancia al eje y el ángulo para observar cómo cambia el torque.</p>
+
+  <div class="panel">
+    <canvas id="diagram" width="900" height="430"></canvas>
+  </div>
+
+  <div class="panel controls">
+    <div>
+      <label>Fuerza: <span class="value" id="forceValue"></span></label>
+      <input id="force" type="range" min="0" max="50" value="20" step="1">
+    </div>
+    <div>
+      <label>Distancia al eje: <span class="value" id="distanceValue"></span></label>
+      <input id="distance" type="range" min="0" max="2" value="1.5" step="0.1">
+    </div>
+    <div>
+      <label>Ángulo θ: <span class="value" id="angleValue"></span></label>
+      <input id="angle" type="range" min="0" max="180" value="90" step="1">
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="formula">τ = r · F · sin(θ)</div>
+    <div class="result" id="result"></div>
+    <p class="note">El torque es máximo cuando la fuerza es perpendicular al brazo de palanca (90°) y vale cero cuando la fuerza apunta en la misma dirección que el brazo (0° o 180°).</p>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById("diagram");
+const ctx = canvas.getContext("2d");
+const forceSlider = document.getElementById("force");
+const distanceSlider = document.getElementById("distance");
+const angleSlider = document.getElementById("angle");
+
+function arrow(x1,y1,x2,y2) {
+  const head=12, a=Math.atan2(y2-y1,x2-x1);
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(a-Math.PI/6),y2-head*Math.sin(a-Math.PI/6));
+  ctx.lineTo(x2-head*Math.cos(a+Math.PI/6),y2-head*Math.sin(a+Math.PI/6));
+  ctx.closePath(); ctx.fill();
+}
+
+function draw() {
+  const F = Number(forceSlider.value);
+  const r = Number(distanceSlider.value);
+  const deg = Number(angleSlider.value);
+  const rad = deg*Math.PI/180;
+  const torque = r*F*Math.sin(rad);
+
+  document.getElementById("forceValue").textContent = F+" N";
+  document.getElementById("distanceValue").textContent = r.toFixed(1)+" m";
+  document.getElementById("angleValue").textContent = deg+"°";
+  document.getElementById("result").textContent =
+    `τ = ${r.toFixed(1)} × ${F} × sin(${deg}°) = ${torque.toFixed(2)} N·m`;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const ox=130, oy=245;
+  const fullLength=600;
+  const pxPerMeter=fullLength/2;
+  const pxR=r*pxPerMeter;
+  const px=ox+pxR, py=oy;
+
+  // floor / reference
+  ctx.strokeStyle="#aaa"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(60,oy); ctx.lineTo(790,oy); ctx.stroke();
+
+  // lever
+  ctx.strokeStyle="#333"; ctx.lineWidth=18; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ox+fullLength,oy); ctx.stroke();
+
+  // pivot
+  ctx.fillStyle="#222";
+  ctx.beginPath(); ctx.arc(ox,oy,16,0,Math.PI*2); ctx.fill();
+  ctx.font="18px Arial"; ctx.fillText("Eje",ox-18,oy+48);
+
+  // distance marker
+  ctx.strokeStyle="#555"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(ox,oy+38); ctx.lineTo(px,oy+38); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,oy+30); ctx.lineTo(ox,oy+46); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(px,oy+30); ctx.lineTo(px,oy+46); ctx.stroke();
+  ctx.fillStyle="#222"; ctx.fillText(`r = ${r.toFixed(1)} m`, (ox+px)/2-35, oy+70);
+
+  // application point
+  ctx.fillStyle="#d33";
+  ctx.beginPath(); ctx.arc(px,py,9,0,Math.PI*2); ctx.fill();
+
+  // force vector: mathematical angle, screen y inverted
+  const len=45+F*2.2;
+  const fx=px+len*Math.cos(rad);
+  const fy=py-len*Math.sin(rad);
+  ctx.strokeStyle="#1769aa"; ctx.fillStyle="#1769aa"; ctx.lineWidth=5;
+  arrow(px,py,fx,fy);
+  ctx.fillText(`F = ${F} N`, fx+10, fy-8);
+
+  // angle arc
+  if (r > 0) {
+    ctx.strokeStyle="#777"; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.arc(px,py,45,-rad,0);
+    ctx.stroke();
+    ctx.fillStyle="#222";
+    ctx.fillText(`θ = ${deg}°`,px+52,py-25);
+  }
+
+  // torque indication
+  ctx.fillStyle="#222";
+  ctx.font="bold 22px Arial";
+  ctx.fillText(`Torque = ${torque.toFixed(2)} N·m`, 540, 70);
+  ctx.font="17px Arial";
+  ctx.fillText("Punto rojo = lugar donde se aplica la fuerza", 500, 105);
+}
+
+[forceSlider,distanceSlider,angleSlider].forEach(el=>el.addEventListener("input",draw));
+draw();
+</script>
+</body>
+</html>
