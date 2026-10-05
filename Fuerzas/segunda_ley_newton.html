@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2.ª Ley de Newton</title>
+<style>body{font-family:Arial,sans-serif;background:#f2f2f2;color:#222;max-width:900px;margin:30px auto;padding:0 20px}.panel{background:#fff;padding:24px;border-radius:12px;margin-bottom:20px}canvas{width:100%;max-width:800px;height:300px;border:1px solid #888;background:#eee;margin-top:20px}button{font-size:16px;padding:10px 18px;margin-right:8px;cursor:pointer}.control,.dato{font-size:18px;margin:12px 0}input{width:300px}.formula{font-size:26px;font-weight:bold;text-align:center}</style></head>
+<body><div class="panel"><h1>2.ª Ley de Newton</h1><h2>Fuerza, masa y aceleración</h2><p>La aceleración depende de la fuerza neta aplicada y de la masa del objeto.</p><div class="formula">F = m · a</div>
+<div class="control">Fuerza: <strong id="fv">20</strong> N<br><input id="f" type="range" min="0" max="100" value="20"></div>
+<div class="control">Masa: <strong id="mv">10</strong> kg<br><input id="m" type="range" min="1" max="30" value="10"></div>
+<button onclick="aplicar()">Aplicar fuerza</button><button onclick="reiniciar()">Reiniciar</button>
+<div class="dato">Aceleración: <strong id="a">2.00</strong> m/s²</div><div class="dato">Velocidad: <strong id="v">0.00</strong> m/s</div>
+<canvas id="c" width="800" height="300"></canvas></div>
+<div class="panel"><h3>¿Qué observar?</h3><p>Al aumentar la <strong>fuerza</strong> con la misma masa, aumenta la aceleración.</p><p>Al aumentar la <strong>masa</strong> con la misma fuerza, disminuye la aceleración.</p><p>Mientras la fuerza actúa, la velocidad aumenta porque el objeto está acelerando.</p></div>
+<script>
+const c=document.getElementById("c"),ctx=c.getContext("2d"),fc=document.getElementById("f"),mc=document.getElementById("m");
+let x=80,v=0,a=0,activa=false,escala=35,ultimo=performance.now();
+function calcular(){let f=Number(fc.value),m=Number(mc.value);a=f/m;document.getElementById("fv").textContent=f;document.getElementById("mv").textContent=m;document.getElementById("a").textContent=a.toFixed(2)}
+function flecha(x1,y,l){ctx.strokeStyle="#d93636";ctx.fillStyle="#d93636";ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x1+l,y);ctx.stroke();ctx.beginPath();ctx.moveTo(x1+l,y);ctx.lineTo(x1+l-15,y-10);ctx.lineTo(x1+l-15,y+10);ctx.closePath();ctx.fill()}
+function dibujar(){ctx.clearRect(0,0,c.width,c.height);ctx.strokeStyle="#222";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,220);ctx.lineTo(c.width,220);ctx.stroke();ctx.fillStyle="#f1c84b";ctx.strokeStyle="#222";ctx.fillRect(x-30,160,60,60);ctx.strokeRect(x-30,160,60,60);ctx.fillStyle="#222";ctx.font="16px Arial";ctx.textAlign="center";ctx.fillText(mc.value+" kg",x,195);if(activa){flecha(x+35,145,Number(fc.value)*1.2);ctx.fillStyle="#d93636";ctx.textAlign="left";ctx.fillText("Fuerza = "+fc.value+" N",x+40,120)}ctx.fillStyle="#222";ctx.textAlign="left";ctx.fillText("a = F / m = "+a.toFixed(2)+" m/s²",20,30)}
+function loop(t){let dt=(t-ultimo)/1000;ultimo=t;calcular();if(activa){v+=a*dt;x+=v*escala*dt}if(x>c.width+30)x=-30;document.getElementById("v").textContent=v.toFixed(2);dibujar();requestAnimationFrame(loop)}
+function aplicar(){activa=true}function reiniciar(){x=80;v=0;activa=false}fc.oninput=calcular;mc.oninput=calcular;calcular();requestAnimationFrame(loop);
+</script></body></html>

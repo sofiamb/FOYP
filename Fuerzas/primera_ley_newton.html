@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1.ª Ley de Newton</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f2f2f2;color:#222;max-width:900px;margin:30px auto;padding:0 20px}
+.panel{background:white;padding:24px;border-radius:12px;margin-bottom:20px}
+canvas{width:100%;max-width:800px;height:260px;border:1px solid #888;background:#eee;margin-top:20px}
+button{font-size:16px;padding:10px 18px;margin-right:8px;cursor:pointer}
+.dato{font-size:18px;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="panel">
+<h1>1.ª Ley de Newton</h1>
+<h2>Ley de la inercia</h2>
+<p>Un objeto permanece en reposo o en movimiento rectilíneo uniforme mientras no actúe sobre él una fuerza neta.</p>
+<button onclick="darImpulso()">Dar impulso</button>
+<button onclick="reiniciar()">Reiniciar</button>
+<div class="dato">Velocidad: <strong id="velocidad">0</strong> px/s</div>
+<div class="dato">Estado: <strong id="estado">En reposo</strong></div>
+<canvas id="grafico" width="800" height="260"></canvas>
+</div>
+<div class="panel">
+<h3>¿Qué representa?</h3>
+<p>Al principio la pelota está en reposo. Si no actúa ninguna fuerza, permanece en reposo.</p>
+<p>Al presionar <strong>Dar impulso</strong>, la pelota adquiere una velocidad inicial.</p>
+<p>Después del impulso no se aplica ninguna otra fuerza. Como no hay rozamiento, continúa moviéndose con velocidad constante.</p>
+</div>
+<script>
+const canvas=document.getElementById("grafico");
+const ctx=canvas.getContext("2d");
+let x=50;
+let velocidad=0;
+let ultimoTiempo=performance.now();
+
+function dibujar(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.beginPath();ctx.moveTo(0,180);ctx.lineTo(canvas.width,180);ctx.strokeStyle="#222";ctx.lineWidth=3;ctx.stroke();
+ ctx.beginPath();ctx.arc(x,155,25,0,Math.PI*2);ctx.fillStyle="#e85b5b";ctx.fill();ctx.strokeStyle="#222";ctx.lineWidth=2;ctx.stroke();
+ if(velocidad>0){
+  ctx.beginPath();ctx.moveTo(x,110);ctx.lineTo(x+80,110);ctx.strokeStyle="#2474d2";ctx.lineWidth=4;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x+80,110);ctx.lineTo(x+65,100);ctx.lineTo(x+65,120);ctx.closePath();ctx.fillStyle="#2474d2";ctx.fill();
+  ctx.fillStyle="#2474d2";ctx.font="16px Arial";ctx.fillText("Velocidad constante",x,90);
+ }
+}
+
+function actualizar(t){
+ let dt=(t-ultimoTiempo)/1000;ultimoTiempo=t;
+ x+=velocidad*dt;
+ if(x>canvas.width+25)x=-25;
+ document.getElementById("velocidad").textContent=velocidad.toFixed(0);
+ document.getElementById("estado").textContent=velocidad===0?"En reposo":"Movimiento rectilíneo uniforme";
+ dibujar();
+ requestAnimationFrame(actualizar);
+}
+
+function darImpulso(){velocidad=120}
+function reiniciar(){x=50;velocidad=0}
+requestAnimationFrame(actualizar);
+</script>
+</body>
+</html>
